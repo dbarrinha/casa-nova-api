@@ -1,19 +1,39 @@
-import type { Response, Request } from "express";
+import type { Response, Request, NextFunction } from "express";
 import User from "../entities/user";
 import UserSchema from "../schemas/userSchema";
+import HttpResponse from "../helpers/httpResponse";
+import MissingParamError from "../helpers/missingParamError";
 
 class AuthController {
-	static async register(req: Request, res: Response) {
+	static async register(req: Request, res: Response, next: NextFunction) {
 		try {
 			const { name, email, password } = req.body;
-			if (!name || !email || !password) throw new Error("Missing fields");
+			if (!name) {
+				const error = HttpResponse.badRequest(new MissingParamError("name"));
+				res.status(error.statusCode).send(error);
+				next();
+			}
+			if (!email) {
+				const error = HttpResponse.badRequest(new MissingParamError("email"));
+				res.status(error.statusCode).json(error);
+				next();
+			}
+			if (!password) {
+				const error = HttpResponse.badRequest(
+					new MissingParamError("password"),
+				);
+				res.status(error.statusCode).send(error);
+			}
 
 			const user = new User(name, email, password);
 			const userDocument = new UserSchema(user);
 			const createdUserDocument = await userDocument.save();
-			res.status(201).json({ ...user.toJSON(), id: createdUserDocument.id });
-		} catch (error) {
-			res.status(400).send({ message: "erro!" });
+			const response = HttpResponse.created(createdUserDocument);
+			res.status(response.statusCode).send(response);
+		} catch (e: unknown) {
+			console.log(e);
+			const error = HttpResponse.serverError(e);
+			res.status(error.statusCode).send(error);
 		}
 	}
 
